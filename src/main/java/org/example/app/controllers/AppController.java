@@ -14,9 +14,8 @@ public class AppController {
         DbConnectInit connectInit = new DbConnectInit();
         if(connectInit.isConnected()) {
             AppView appView = new AppView();
-            appView.appViewProcessing(scanner, connectInit.getConnection());
+            appView.appViewProcessing(scanner, connectInit);
             scanner.close();
-            connectInit.closeConnection();
         }
         else {
             List<String> errors = connectInit.getConnectErrors();

@@ -1,8 +1,8 @@
 package org.example.app.views;
 
 import org.example.app.controllers.CRUDController;
+import org.example.app.db_connect.DbConnectInit;
 
-import java.sql.Connection;
 import java.util.Scanner;
 
 public class AppView {
@@ -17,7 +17,7 @@ public class AppView {
             6. Exit
             """;
 
-    public void appViewProcessing(Scanner scanner, Connection connection) {
+    public void appViewProcessing(Scanner scanner, DbConnectInit connection) {
         System.out.println(title);
         while (true) {
             System.out.println(menu);

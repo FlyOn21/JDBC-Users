@@ -1,5 +1,6 @@
 package org.example.app.model;
 
+import org.example.app.db_connect.DbConnectInit;
 import org.example.app.entity.User;
 import org.example.app.repository.UserRepository;
 import org.example.app.utils.ActionAnswer;
@@ -7,7 +8,6 @@ import org.example.app.utils.validate.Validator;
 import org.example.app.utils.validate.enums.EValidateUser;
 import org.example.app.utils.validate.validate_entity.ValidateAnswer;
 
-import java.sql.Connection;
 
 public class CreatUserModel {
     private String firstName;
@@ -58,7 +58,7 @@ public class CreatUserModel {
         return answer;
     }
 
-    public ActionAnswer createUser(Connection connection) {
+    public ActionAnswer createUser(DbConnectInit connection) {
         User newUser = new User(firstName, lastName, email, phone);
         UserRepository userRepository = new UserRepository(connection);
         return userRepository.create(newUser);

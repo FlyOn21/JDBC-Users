@@ -1,5 +1,6 @@
 package org.example.app.model;
 
+import org.example.app.db_connect.DbConnectInit;
 import org.example.app.entity.User;
 import org.example.app.repository.UserRepository;
 import org.example.app.utils.ActionAnswer;
@@ -7,7 +8,6 @@ import org.example.app.utils.validate.Validator;
 import org.example.app.utils.validate.enums.EValidateUser;
 import org.example.app.utils.validate.validate_entity.ValidateAnswer;
 
-import java.sql.Connection;
 
 public class UpdateUserModel {
     private User user;
@@ -39,7 +39,7 @@ public class UpdateUserModel {
         return answer;
     }
 
-    public ValidateAnswer setEmail(String email, Connection connection, boolean isSelfEmail) {
+    public ValidateAnswer setEmail(String email, DbConnectInit connection, boolean isSelfEmail) {
         Validator<EValidateUser> validator = new Validator<>();
         ValidateAnswer answer = validator.validate(email, EValidateUser.EMAIL);
         if (answer.isValid()) {
@@ -66,12 +66,12 @@ public class UpdateUserModel {
         return answer;
     }
 
-    public ActionAnswer updateUser(Connection connection) {
+    public ActionAnswer updateUser(DbConnectInit connection) {
         UserRepository userRepository = new UserRepository(connection);
         return userRepository.update(this.user);
     }
 
-    private boolean isEmailExists(Connection connection) {
+    private boolean isEmailExists(DbConnectInit connection) {
         UserRepository userRepository = new UserRepository(connection);
         return userRepository.checkEmailExists(this.user.getEmail());
     }

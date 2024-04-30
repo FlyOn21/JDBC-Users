@@ -1,14 +1,19 @@
 package org.example.app.repository;
 
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Root;
 import org.example.app.db_connect.DbConnectInit;
+import org.example.app.db_connect.IConnection;
 import org.example.app.entity.User;
 import org.example.app.repository.interfaces.IRepository;
-import org.example.app.tables.UsersTable;
 import org.example.app.utils.ActionAnswer;
-import org.example.app.utils.SqlRawCreator;
+import org.example.app.utils.UserFilters;
+import org.hibernate.HibernateException;
+import org.hibernate.Session;
+import org.hibernate.query.Query;
 
-import java.sql.*;
-import java.util.ArrayList;
+import java.awt.*;
 import java.util.logging.Logger;
 import java.util.logging.Level;
 
@@ -16,15 +21,11 @@ import java.util.List;
 import java.util.Optional;
 
 public class UserRepository implements IRepository<User> {
-    private final Connection connection;
-    private final SqlRawCreator<UsersTable> sqlCreator;
+    private final IConnection connection;
     private static final Logger DbConnectInitLogger = Logger.getLogger(DbConnectInit.class.getName());
 
-    public UserRepository(Connection connection) {
+    public UserRepository(IConnection connection) {
         this.connection = connection;
-        this.sqlCreator = new SqlRawCreator<>();
-        UsersTable usersTable = new UsersTable();
-        this.sqlCreator.setTable(usersTable);
     }
 
     @Override
@@ -35,18 +36,14 @@ public class UserRepository implements IRepository<User> {
             actionAnswer.addError("Email already exists");
             return actionAnswer;
         }
-        String baseStmt = this.sqlCreator.createEntitySqlRaw();
-        try (PreparedStatement createStmt = this.connection.prepareStatement(baseStmt)) {
-            createStmt.setString(1, obj.getFirstName());
-            createStmt.setString(2, obj.getLastName());
-            createStmt.setString(3, obj.getEmail());
-            createStmt.setString(4, obj.getPhone());
-
-            createStmt.executeUpdate();
+        try(Session session = this.connection.getSessionFactory().openSession()) {
+            session.beginTransaction();
+            session.persist(obj);
+            session.getTransaction().commit();
             actionAnswer.setIsSuccess();
             actionAnswer.setSuccessMsg("User created successfully");
             return actionAnswer;
-        } catch (SQLException e) {
+        } catch (HeadlessException e) {
             DbConnectInitLogger.log(Level.SEVERE, e.getMessage());
             actionAnswer.addError(e.getMessage());
             return actionAnswer;
@@ -54,12 +51,10 @@ public class UserRepository implements IRepository<User> {
     }
 
     public boolean checkEmailExists(String emailValue) {
-        String checkEmailExistsSqlRaw = this.sqlCreator.checkByUniqueFieldExistEntitySqlRaw("email");
-        try (PreparedStatement checkEmailExistsStmt = this.connection.prepareStatement(checkEmailExistsSqlRaw)) {
-            checkEmailExistsStmt.setString(1, emailValue);
-            ResultSet rs = checkEmailExistsStmt.executeQuery();
-            return rs.next();
-        } catch (SQLException e) {
+        try (Session session = this.connection.getSessionFactory().openSession()) {
+            User user = session.get(User.class, emailValue);
+            return user != null;
+        } catch (Exception e) {
             DbConnectInitLogger.log(Level.SEVERE, e.getMessage());
             return false;
         }
@@ -67,15 +62,27 @@ public class UserRepository implements IRepository<User> {
 
     @Override
     public Optional<List<User>> readAll(List<String> excludeColumns, int limit, int offset) {
-        try (Statement getStmt = this.connection.createStatement()) {
-            String getAllSql = this.sqlCreator.readAllEntitySqlRaw(excludeColumns,limit,offset);
-            ResultSet rs = getStmt.executeQuery(getAllSql);
-            List<User> querySetResult = addDataToQuerySet(rs, excludeColumns);
-            if (querySetResult.isEmpty()) {
+        try (Session session = this.connection.getSessionFactory().openSession()) {
+            CriteriaBuilder cb = session.getCriteriaBuilder();
+            CriteriaQuery<User> cq = cb.createQuery(User.class);
+            cq.from(User.class);
+            Query<User> query = session.createQuery(cq);
+            if (limit > 0) {
+                query.setMaxResults(limit);
+            }
+            if (offset > 0) {
+                query.setFirstResult(offset);
+            }
+            List<User> result = query.getResultList();
+            if (result.isEmpty()) {
                 return Optional.empty();
             }
-            return Optional.of(querySetResult);
-        } catch (SQLException e) {
+            if (excludeColumns != null && !excludeColumns.isEmpty()) {
+                List <User> filterResult = UserFilters.filterUsers(result, excludeColumns);
+                return Optional.of(filterResult);
+            }
+            return Optional.of(result);
+        } catch (HibernateException e) {
             DbConnectInitLogger.log(Level.SEVERE, e.getMessage());
             return Optional.empty();
         }
@@ -84,19 +91,14 @@ public class UserRepository implements IRepository<User> {
     @Override
     public ActionAnswer update(User obj) {
         ActionAnswer actionAnswer = new ActionAnswer();
-        String baseStmt = this.sqlCreator.updateEntitySqlRaw();
-        try (PreparedStatement updateStmt = this.connection.prepareStatement(baseStmt)) {
-            updateStmt.setString(1, obj.getFirstName());
-            updateStmt.setString(2, obj.getLastName());
-            updateStmt.setString(3, obj.getEmail());
-            updateStmt.setString(4, obj.getPhone());
-            updateStmt.setLong(5, obj.getId());
-
-            updateStmt.executeUpdate();
+        try (Session session = this.connection.getSessionFactory().openSession()) {
+            session.beginTransaction();
+            session.merge(obj);
+            session.getTransaction().commit();
             actionAnswer.setIsSuccess();
             actionAnswer.setSuccessMsg("User update successfully");
             return actionAnswer;
-        } catch (SQLException e) {
+        } catch (HeadlessException e) {
             DbConnectInitLogger.log(Level.SEVERE, e.getMessage());
             actionAnswer.addError(e.getMessage());
             return actionAnswer;
@@ -106,14 +108,15 @@ public class UserRepository implements IRepository<User> {
     @Override
     public ActionAnswer delete(Long id) {
         ActionAnswer actionAnswer = new ActionAnswer();
-        String baseStmt = this.sqlCreator.deleteEntitySqlRaw();
-        try (PreparedStatement deleteStmt = this.connection.prepareStatement(baseStmt)) {
-            deleteStmt.setLong(1, id);
-            deleteStmt.executeUpdate();
+        try (Session session = this.connection.getSessionFactory().openSession()) {
+            session.beginTransaction();
+            User user = session.get(User.class, id);
+            session.remove(user);
+            session.getTransaction().commit();
             actionAnswer.setIsSuccess();
-            actionAnswer.setSuccessMsg("User update successfully");
+            actionAnswer.setSuccessMsg("User deleted successfully");
             return actionAnswer;
-        } catch (SQLException e) {
+        } catch (HeadlessException e) {
             DbConnectInitLogger.log(Level.SEVERE, e.getMessage());
             actionAnswer.addError(e.getMessage());
             return actionAnswer;
@@ -122,34 +125,25 @@ public class UserRepository implements IRepository<User> {
 
     @Override
     public Optional<List<User>> readById(Long id, List<String> excludeColumns) {
-        String getUserByIdSqlRaw = this.sqlCreator.readByIdEntitySqlRaw(excludeColumns);
-        try (PreparedStatement getByIdStmt = this.connection.prepareStatement(getUserByIdSqlRaw)) {
-            getByIdStmt.setLong(1, id);
-            ResultSet rs = getByIdStmt.executeQuery();
-            List<User> querySetResult = addDataToQuerySet(rs, excludeColumns);
-            if (querySetResult.isEmpty()) {
+        try (Session session = this.connection.getSessionFactory().openSession()) {
+            CriteriaBuilder cb = session.getCriteriaBuilder();
+            CriteriaQuery<User> cq = cb.createQuery(User.class);
+            Root<User> root = cq.from(User.class);
+
+            cq.where(cb.equal(root.get("id"), id));
+            List <User> result = session.createQuery(cq).getResultList();
+            if (result.isEmpty()) {
                 return Optional.empty();
             }
-            return Optional.of(querySetResult);
-        }catch (SQLException e) {
+            if (excludeColumns != null && !excludeColumns.isEmpty()) {
+                List <User> filterResult = UserFilters.filterUsers(result, excludeColumns);
+                return Optional.of(filterResult);
+            }
+            return Optional.of(result);
+        } catch (HibernateException e) {
             DbConnectInitLogger.log(Level.SEVERE, e.getMessage());
             return Optional.empty();
         }
-
-    }
-
-    private List<User> addDataToQuerySet(ResultSet rs, List<String> excludeColumns) throws SQLException {
-        List<User> querySet = new ArrayList<>();
-        while (rs.next()) {
-            querySet.add(new User(
-                    !excludeColumns.contains("id") ? rs.getLong("id") : -1,
-                    !excludeColumns.contains("firstName") ? rs.getString("firstName") : "",
-                    !excludeColumns.contains("lastName") ? rs.getString("lastName") : "",
-                    !excludeColumns.contains("email") ? rs.getString("email") : "",
-                    !excludeColumns.contains("phone") ? rs.getString("phone") : ""
-            ));
-        }
-        return querySet;
     }
 
 }

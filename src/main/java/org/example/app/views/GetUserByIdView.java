@@ -1,18 +1,17 @@
 package org.example.app.views;
 
+import org.example.app.db_connect.DbConnectInit;
 import org.example.app.entity.User;
 import org.example.app.model.GetByIdUserModel;
 import org.example.app.utils.ValidateUtils;
 import org.example.app.utils.validate.validate_entity.ValidateAnswer;
-
-import java.sql.Connection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Scanner;
 
 public class GetUserByIdView {
     private final Scanner scanner;
-    private final Connection connection;
+    private final DbConnectInit connection;
     private boolean isCorrect = false;
     String createUserMenu = """
             
@@ -23,7 +22,7 @@ public class GetUserByIdView {
             3. Back
             """;
 
-    public GetUserByIdView(Scanner scanner, Connection connection) {
+    public GetUserByIdView(Scanner scanner, DbConnectInit connection) {
         this.scanner = scanner;
         this.connection = connection;
     }
